@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "poker-bot"
+version = "1.0.0"
+description = "Telegram-бот для учёта домашних cash-игр"
+requires-python = ">=3.11"
+dependencies = ["aiogram>=3.32,<4", "SQLAlchemy>=2.0.36,<3", "alembic>=1.14,<2", "python-dotenv>=1.0,<2", "tzdata>=2025.1", "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "psycopg[binary]>=3.2,<4"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-asyncio>=0.24,<2", "ruff>=0.11", "httpx>=0.28,<1"]
+
+[tool.setuptools.packages.find]
+include = ["poker_bot*"]
+
+[tool.setuptools.package-data]
+poker_bot = ["assets/*.html", "assets/*.css", "assets/*.js", "assets/fonts/*.ttf", "assets/fonts/OFL.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 110
+

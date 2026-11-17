@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f5f4">
+  <title>Покерный клуб</title>
+  <link rel="preload" href="/assets/fonts/GolosText-variable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <div class="app-shell">
+    <aside class="sidebar glass">
+      <a class="brand" href="#home"><span class="brand-mark">♠</span><span>Покерный<br><b>клуб</b></span></a>
+      <p class="sidebar-caption">СВОЙ КРУГ. СВОЯ ИГРА.</p>
+      <nav id="desktop-nav" aria-label="Основная навигация"></nav>
+      <div class="sidebar-foot"><span class="live-dot"></span> Играем за одним столом</div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <a class="mobile-brand" href="#home" aria-label="На главную">♠</a>
+        <label class="club-picker"><span class="eyebrow">ВАШ КЛУБ</span><select id="club-select" aria-label="Выберите клуб"><option>Загрузка…</option></select></label>
+        <button id="theme-toggle" class="icon-button glass" aria-label="Переключить тему">◐</button>
+        <span class="avatar self" id="my-avatar">П</span>
+      </header>
+      <div id="demo-banner" class="demo-banner" hidden>Демоклуб · данные для знакомства · сохраняются отдельно</div>
+      <main id="content" aria-live="polite"><div class="loading"><span class="spinner"></span>Открываем клуб…</div></main>
+      <footer class="fine-print">Только живые встречи. Всё остальное — за вашим столом.</footer>
+    </div>
+    <nav id="mobile-nav" class="bottom-nav glass" aria-label="Основная навигация"></nav>
+  </div>
+  <dialog id="sheet" class="sheet glass"><form id="sheet-form"><div class="sheet-heading"><h2 id="sheet-title"></h2><button type="button" class="icon-button" id="close-sheet" aria-label="Закрыть">×</button></div><div id="sheet-fields"></div><p id="sheet-error" class="error" role="alert"></p><button id="sheet-submit" class="button primary full" type="submit">Продолжить</button><button id="sheet-back" class="button full" type="button" hidden>Назад</button></form></dialog>
+  <div id="toast" class="toast glass" role="status" hidden></div>
+</body>
+</html>
