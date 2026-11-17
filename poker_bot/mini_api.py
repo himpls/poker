@@ -12,6 +12,7 @@ from .clubs import Clubs
 from .db import Database
 from .mini_auth import verify_init_data
 from .money import CURRENCIES, ClubError, parse_money
+from .tournaments import Tournaments
 
 
 class Input(BaseModel):
@@ -68,6 +69,24 @@ class Correction(Input):
     amounts: dict[int, Annotated[str, Field(max_length=30)]] = Field(min_length=1, max_length=100)
     reason: str = Field(min_length=5, max_length=500)
     key: str = Field(min_length=8, max_length=64, pattern=r"^[\w-]+$")
+
+
+class NewTournament(Input):
+    title: str = Field(min_length=1, max_length=80)
+    starts_at: str = Field(max_length=40)
+    location: str = Field(default="", max_length=250)
+    key: str = Field(min_length=8, max_length=64, pattern=r"^[\w-]+$")
+
+
+class Standing(Input):
+    member_id: int = Field(strict=True, gt=0)
+    place: int = Field(strict=True, gt=0)
+
+
+class TournamentResult(Input):
+    standings: list[Standing] = Field(min_length=2, max_length=500)
+    note: str = Field(default="", max_length=500)
+    revision: int = Field(strict=True, ge=0)
 
 
 def install_mini_app(app, database=None, demo=False):
@@ -172,6 +191,26 @@ def install_mini_app(app, database=None, demo=False):
     @router.get("/clubs/{club_id}/stats")
     def stats(club_id: int, user: actor, period: str = "all"):
         return Cash(db()).stats(user["id"], club_id, period)
+
+    @router.get("/clubs/{club_id}/tournaments")
+    def list_tournaments(club_id: int, user: actor):
+        service = Tournaments(db())
+        return {"tournaments": service.list(user["id"], club_id), "ranking": service.ranking(user["id"], club_id)}
+
+    @router.post("/clubs/{club_id}/tournaments")
+    def create_tournament(club_id: int, body: NewTournament, user: actor):
+        return {"id": Tournaments(db()).create(user["id"], club_id, body.title,
+            body.starts_at, body.location, body.key)}
+
+    @router.get("/tournaments/{tournament_id}")
+    def tournament(tournament_id: int, user: actor):
+        return Tournaments(db()).get(user["id"], tournament_id)
+
+    @router.post("/tournaments/{tournament_id}/results")
+    def tournament_result(tournament_id: int, body: TournamentResult, user: actor):
+        Tournaments(db()).finish(user["id"], tournament_id,
+            [r.model_dump() for r in body.standings], body.note, body.revision)
+        return {"ok": True}
 
     @app.exception_handler(ClubError)
     async def business_error(request, error):

@@ -122,6 +122,28 @@ outbox = Table(
     UniqueConstraint("game_id", "revision"),
 )
 
+tournaments = Table(
+    "tournaments", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("club_id", ForeignKey("clubs.id"), nullable=False),
+    Column("title", String(80), nullable=False),
+    Column("starts_at", String(40), nullable=False),
+    Column("location", String(250), nullable=False),
+    Column("status", String(16), nullable=False, server_default="planned"),
+    Column("revision", Integer, nullable=False, server_default="0"),
+    Column("note", String(500), nullable=False, server_default=""),
+    Column("request_key", String(100), nullable=False, unique=True),
+    CheckConstraint("status IN ('planned','completed','cancelled')"),
+)
+tournament_results = Table(
+    "tournament_results", metadata,
+    Column("tournament_id", ForeignKey("tournaments.id"), primary_key=True),
+    Column("member_id", ForeignKey("members.id"), primary_key=True),
+    Column("place", Integer, nullable=False),
+    UniqueConstraint("tournament_id", "place"),
+    CheckConstraint("place > 0"),
+)
+
 
 class Database:
     def __init__(self, url: str):

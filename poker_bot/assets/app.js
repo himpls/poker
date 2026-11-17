@@ -1,7 +1,7 @@
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const W = window.Telegram?.WebApp;
-const S = {tab:'home',clubId:null,clubs:[],club:null,members:[],games:[],stats:null,game:null,period:'all',page:0};
+const S = {tab:'home',tournament:null,tournaments:[],tournamentRanking:[],clubId:null,clubs:[],club:null,members:[],games:[],stats:null,game:null,period:'all',page:0};
 const statusNames = {planned:'Запланирована',active:'За столом',reconciling:'Сверка результатов',completed:'Завершена',cancelled:'Отменена'};
 const roleNames = {owner:'Владелец',organizer:'Организатор',member:'Участник'};
 const opNames = {buyin:'Первый вход',rebuy:'Докупка',cashout:'Кэшаут'};
@@ -48,11 +48,11 @@ function theme(){
 }
 $('#theme-toggle').onclick=()=>{localStorage.setItem('poker_theme',document.body.classList.contains('dark')?'light':'dark');theme();};
 W?.ready(); W?.expand(); W?.onEvent('themeChanged',()=>{localStorage.removeItem('poker_theme');theme();}); theme();
-W?.BackButton.onClick(()=>navigate(S.game?'games':'home'));
+W?.BackButton.onClick(()=>navigate(S.game||S.tournament?'games':'home'));
 function nav(){
  const html=tabs.map(([id,label])=>`<button class="nav-button ${S.tab===id?'active':''}" data-tab="${id}" ${S.tab===id?'aria-current="page"':''}>${icon(id)}<span>${label}</span></button>`).join('');
  $('#desktop-nav').innerHTML=html;$('#mobile-nav').innerHTML=html;
- if(S.tab!=='home'||S.game) W?.BackButton.show(); else W?.BackButton.hide();
+ if(S.tab!=='home'||S.game||S.tournament) W?.BackButton.show(); else W?.BackButton.hide();
 }
 async function load(){
  const result=await api('/clubs');S.clubs=result.clubs;S.user=result.user;
@@ -62,14 +62,15 @@ async function load(){
  if(S.clubId){
   const club=await api(`/clubs/${S.clubId}`);S.club=club.club;S.members=club.members;S.games=club.games;
   S.stats=await api(`/clubs/${S.clubId}/stats?period=${S.period}`);
- } else {S.club=null;S.members=[];S.games=[];S.stats=null;}
+  const tournaments=await api(`/clubs/${S.clubId}/tournaments`);S.tournaments=tournaments.tournaments;S.tournamentRanking=tournaments.ranking;
+ } else {S.club=null;S.members=[];S.games=[];S.stats=null;S.tournaments=[];S.tournamentRanking=[];}
 }
 async function refresh(){
  const serial=++renderSerial;
- try{await load();if(serial!==renderSerial)return;if(S.game)S.game=await api(`/games/${S.game.id}`);render();}
+ try{await load();if(serial!==renderSerial)return;if(S.game)S.game=await api(`/games/${S.game.id}`);if(S.tournament)S.tournament=await api(`/tournaments/${S.tournament.id}`);render();}
  catch(e){toast(e.message);$('#content').innerHTML=`<section class="card glass empty"><span class="empty-icon">♠</span><h2>Не удалось открыть клуб</h2><p>${esc(e.message)}</p>${button('Попробовать снова','retry','primary')}</section>`;}
 }
-function navigate(tab){S.tab=tab;S.game=null;S.page=0;render();window.scrollTo({top:0,behavior:'smooth'});}
+function navigate(tab){S.tab=tab;S.game=null;S.tournament=null;S.page=0;render();window.scrollTo({top:0,behavior:'smooth'});}
 function rankingRows(rows,offset=0){return rows.map((r,i)=>`<div class="list-row"><span class="rank">${offset+i+1}</span>${avatar(r.name)}<div class="grow"><div class="name">${esc(r.name)}</div><small>${r.games} игр · среднее ${plainMoney(Math.round(r.profit/r.games))}</small></div><div class="amount ${signClass(r.profit)}">${money(r.profit,true)}</div></div>`).join('');}
 function gameRow(g){return `<button class="list-row clickable" data-game="${g.id}"><span class="avatar">♠</span><div class="grow"><div class="name">${esc(g.title)}</div><small>${date(g.starts_at)}</small></div>${badge(g.status)}<span class="muted">›</span></button>`;}
 function empty(text,action=''){return `<div class="empty"><span class="empty-icon">♧</span><p>${text}</p>${action}</div>`;}
@@ -86,8 +87,9 @@ function home(){
   `<div class="two-columns"><section class="card glass"><div class="section-heading"><h2>Результаты клуба</h2><button class="text-button" data-tab="ranking">Рейтинг ↗</button></div>${S.stats.ranking.length?rankingRows(S.stats.ranking.slice(0,3)):empty('Первый результат появится после завершённой игры.')}</section><section class="card glass"><div class="section-heading"><h2>Последние встречи</h2><button class="text-button" data-tab="games">История ↗</button></div>${completed.length?completed.slice(0,3).map(gameRow).join(''):empty('Здесь будут ваши вечера и результаты.')}</section></div>`;
 }
 function hero(g){return `<section class="game-hero"><span class="eyebrow"><span class="live-dot"></span>${statusNames[g.status].toUpperCase()}</span><h2>${esc(g.title)}</h2><p>${date(g.starts_at)}${g.location?' · '+esc(g.location):''}</p><div class="hero-bottom"><div><label>Стандартный вход</label><strong>${money(g.buyin)}</strong></div><div class="hero-avatars">${S.members.slice(0,4).map(r=>avatar(r.name)).join('')}</div>${button(g.status==='planned'?'К игре ↗':'Открыть стол ↗','open-game','',`data-id="${g.id}"`)}</div></section>`;}
-function games(){return heading('Ваши вечера','Планы, живые игры и история встреч.',staff()?button('+ Игра','new-game','primary'):'')+`<section class="card glass">${S.games.length?S.games.slice(S.page*10,(S.page+1)*10).map(gameRow).join(''):empty('Пока не запланировано ни одной игры.')}${pager(S.games.length)}</section>`;}
-function ranking(){const rows=S.stats.ranking;return heading('Рейтинг клуба','Суммарная прибыль за завершённые игры.')+`<div class="toolbar"><div class="segmented">${[['all','Всё время'],['month','Месяц'],['season','Сезон']].map(([v,l])=>`<button class="${S.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}</div></div><section class="card glass">${rows.length?rankingRows(rows.slice(S.page*10,(S.page+1)*10),S.page*10):empty('За этот период ещё нет результатов.')}${pager(rows.length)}</section><p class="fine-print">При равенстве прибыли: больше прибыльных игр, затем порядок вступления.<br>Результаты встреч не являются оценкой мастерства.</p>`;}
+function games(){return heading('Ваши вечера','Cash-игры и турниры. Итоги сохраняет организатор.',staff()?button('+ Игра','new-game','primary'):'')+`<div class="section-heading"><h2>Турниры · по местам</h2></div><section class="card glass">${S.tournaments.length?S.tournaments.map(t=>`<button class="list-row clickable" data-action="open-tournament" data-id="${t.id}"><div class="grow"><div class="name">${esc(t.title)}</div><small>${date(t.starts_at)} · ${t.status==='completed'?'Итоги записаны':'Ожидает итогов'}</small></div><span class="badge">Турнир ↗</span></button>`).join(''):empty('Создайте турнир, а после игры внесите места участников.')}</section><div class="section-heading"><h2>Cash · по прибыли</h2></div><section class="card glass">${S.games.length?S.games.slice(S.page*10,(S.page+1)*10).map(gameRow).join(''):empty('Пока не запланировано ни одной cash-игры.')}${pager(S.games.length)}</section>`;}
+
+function ranking(){const rows=S.stats.ranking;return heading('Рейтинг клуба','Cash — по прибыли. Турниры — по местам.')+`<div class="toolbar"><div class="segmented">${[['all','Всё время'],['month','Месяц'],['season','Сезон']].map(([v,l])=>`<button class="${S.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}</div></div><section class="card glass">${rows.length?rankingRows(rows.slice(S.page*10,(S.page+1)*10),S.page*10):empty('За этот период ещё нет результатов.')}${pager(rows.length)}</section><p class="fine-print">При равенстве прибыли: больше прибыльных игр, затем порядок вступления.<br>Результаты встреч не являются оценкой мастерства.</p>`+tournamentRanking();}
 function chart(history){
  if(!history.length)return empty('График появится после первой завершённой игры.');
  let sum=0;const values=[0,...history.map(r=>sum+=r.profit)],min=Math.min(...values),max=Math.max(...values),span=max-min||1;
@@ -106,7 +108,7 @@ function game(){
 function render(){
  nav();
  if(!S.club){$('#content').innerHTML=heading('Соберите свой круг','Домашний покер начинается с друзей.')+`<section class="card glass">${empty('Создайте закрытый клуб или введите код приглашения.',button('Создать клуб','new-club','primary')+' '+button('У меня приглашение','join'))}</section>`;return;}
- $('#content').innerHTML=S.game?game():({home,games,ranking,stats,club})[S.tab]();
+ $('#content').innerHTML=S.tournament?tournament():S.game?game():({home,games,ranking,stats,club})[S.tab]();
  if(S.game&&staff()&&['active','reconciling','completed'].includes(S.game.status)&&S.game.operations.some(o=>o.status==='confirmed')){
   $('#content .toolbar').insertAdjacentHTML('beforeend',button('Исправить записи','correct'));
  }
@@ -114,7 +116,7 @@ function render(){
 function fieldHTML(f){return `<label class="field">${esc(f.label)}${f.options?`<select name="${f.name}" required>${f.options.map(o=>`<option value="${esc(o.value)}" ${o.value===f.value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`:`<input name="${f.name}" type="${f.type||'text'}" value="${esc(f.value||'')}" ${f.inputmode?`inputmode="${f.inputmode}"`:''} ${f.optional?'':'required'} maxlength="${f.max||80}" autocomplete="off">`}</label>`;}
 function form(title,fields,submit,{review=false,label='Сохранить',hint=''}={}){
  const sheet=$('#sheet'),formEl=$('#sheet-form');let reviewed=false,busy=false,values;
- const draftId=`poker-draft:${S.user?.id}:${S.clubId}:${S.game?.id||0}:${title}`;
+ const draftId=`poker-draft:${S.user?.id}:${S.clubId}:${S.tournament?'t'+S.tournament.id:S.game?.id||0}:${title}`;
  let saved;try{saved=JSON.parse(localStorage.getItem(draftId));}catch{}
  const requestKey=saved?.key || crypto.randomUUID();
  if(saved?.values)fields=fields.map(f=>({...f,value:saved.values[f.name]??f.value}));
@@ -137,17 +139,33 @@ $('#close-sheet').onclick=()=>$('#sheet').close();
 function confirm(title,text,submit){form(title,[],submit,{label:'Подтвердить',hint:text});}
 async function openGame(id){S.game=await api(`/games/${id}`);S.tab='games';S.page=0;render();window.scrollTo(0,0);}
 async function act(action,element){
+ if(action==='open-tournament'){S.game=null;S.tournament=await api(`/tournaments/${Number(element.dataset.id)}`);S.tab='games';render();window.scrollTo(0,0);return;}
+ if(action==='tournament-results'){
+  const t=S.tournament, revision=t.revision;
+  const fields=S.members.map(m=>({name:'place_'+m.id,label:m.name+' · место',value:t.results.find(r=>r.member_id===m.id)?.place||'',inputmode:'numeric',optional:true,max:4}));
+  fields.push({name:'note',label:'Комментарий к итогам',value:t.note,optional:true,max:500});
+  form('Итоги турнира',fields,v=>{
+   const standings=S.members.filter(m=>v['place_'+m.id].trim()).map(m=>({member_id:m.id,place:Number(v['place_'+m.id])}));
+   if(standings.length<2||standings.some(r=>!Number.isInteger(r.place)||r.place<1))throw new Error('Укажите целые места минимум для двух участников.');
+   return api(`/tournaments/${t.id}/results`,{standings,note:v.note,revision});
+  },{review:true,label:'Сохранить итоги',hint:'Места от 1 до числа игроков без пропусков и повторов. Для тех, кто не участвовал, оставьте поле пустым. После сохранения турнир завершится.'});return;
+ }
  if(action==='retry'){await refresh();return;}
  if(action==='open-game'){await openGame(Number(element.dataset.id));return;}
  if(action==='prev'||action==='next'){S.page+=action==='next'?1:-1;render();return;}
  if(action==='new-club'){
-  const key=crypto.randomUUID();form('Новый клуб',[{name:'name',label:'Название клуба',value:'',max:80},{name:'currency',label:'Валюта',value:'RUB',options:['RUB','UZS','USD','EUR','KZT','JPY'].map(x=>({value:x,label:x}))},{name:'timezone',label:'Часовой пояс',value:'Asia/Tashkent'}],async(v,key)=>{const r=await api('/clubs',{...v,key});S.clubId=r.id;S.game=null;S.tab='home';},{review:true,label:'Создать клуб'});return;
+  const key=crypto.randomUUID();form('Новый клуб',[{name:'name',label:'Название клуба',value:'',max:80},{name:'currency',label:'Валюта',value:'RUB',options:['RUB','UZS','USD','EUR','KZT','JPY'].map(x=>({value:x,label:x}))},{name:'timezone',label:'Часовой пояс',value:'Asia/Tashkent'}],async(v,key)=>{const r=await api('/clubs',{...v,key});S.clubId=r.id;S.game=null;S.tournament=null;S.tab='home';},{review:true,label:'Создать клуб'});return;
  }
  if(action==='join'){form('Присоединиться',[{name:'token',label:'Код или ссылка приглашения',max:250}],async(v,key)=>{
-  let token=v.token.trim();if(token.includes('join_'))token=token.split('join_')[1].split(/[&#?]/)[0];const r=await api('/join',{token});S.clubId=r.id;S.game=null;S.tab='home';},{label:'Вступить в клуб'});return;}
+  let token=v.token.trim();if(token.includes('join_'))token=token.split('join_')[1].split(/[&#?]/)[0];const r=await api('/join',{token});S.clubId=r.id;S.game=null;S.tournament=null;S.tab='home';},{label:'Вступить в клуб'});return;}
  if(action==='new-game'){
-  const key=crypto.randomUUID();const local=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
-  form('Новый вечер',[{name:'title',label:'Название',value:'Покерный вечер'},{name:'starts_at',label:'Дата и время на вашем устройстве',type:'datetime-local',value:local},{name:'location',label:'Место или комментарий',optional:true,max:250},{name:'buyin',label:`Стандартный вход, ${S.club.currency}`,inputmode:'decimal',value:'1000'}],async(v,key)=>{const r=await api(`/clubs/${S.clubId}/games`,{...v,starts_at:new Date(v.starts_at).toISOString(),key});S.game=await api(`/games/${r.id}`);S.tab='games';},{review:true,label:'Создать игру',hint:'Дата вводится в часовом поясе устройства; в карточке отображается в часовом поясе клуба.'});return;
+  const local=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  form('Новый вечер',[{name:'mode',label:'Формат игры',value:'cash',options:[{value:'cash',label:'Cash — учёт прибыли'},{value:'tournament',label:'Турнир — итоговые места'}]},{name:'title',label:'Название',value:'Покерный вечер'},{name:'starts_at',label:'Дата и время на вашем устройстве',type:'datetime-local',value:local},{name:'location',label:'Место',optional:true,max:250},{name:'buyin',label:`Стандартный вход для cash, ${S.club.currency}`,inputmode:'decimal',value:'1000',optional:true}],async(v,key)=>{
+   const {mode,buyin,...common}=v;common.starts_at=new Date(v.starts_at).toISOString();
+   if(mode==='tournament'){const r=await api(`/clubs/${S.clubId}/tournaments`,{...common,key});S.game=null;S.tournament=await api(`/tournaments/${r.id}`);}
+   else{const r=await api(`/clubs/${S.clubId}/games`,{...common,buyin,key});S.tournament=null;S.game=await api(`/games/${r.id}`);}
+   S.tab='games';
+  },{review:true,label:'Создать игру',hint:'В турнире места записываются после игры; денежный вход не используется. В cash учитываются входы, докупки и кэшауты.'});return;
  }
  if(action==='invite'){
   const r=await api(`/clubs/${S.clubId}/invite`,{});form('Приглашение в клуб',[{name:'token',label:'Скопируйте и передайте другу',value:r.token,max:100}],async()=>{}, {label:'Закрыть',hint:'Друг сможет вставить этот код в разделе «У меня приглашение».'});return;
@@ -187,9 +205,18 @@ document.addEventListener('click',async e=>{
   if(target.dataset.action)await act(target.dataset.action,target);
  }catch(err){toast(err.message);}
 });
-$('#club-select').onchange=async e=>{S.clubId=Number(e.target.value);S.game=null;S.page=0;await refresh();};
+$('#club-select').onchange=async e=>{S.clubId=Number(e.target.value);S.game=null;S.tournament=null;S.page=0;await refresh();};
 async function boot(){
  try{const config=await api('/config');$('#demo-banner').hidden=!config.demo;await refresh();}
  catch(e){$('#content').innerHTML=`<section class="card glass empty"><h2>Не удалось загрузить приложение</h2><p>${esc(e.message)}</p>${button('Повторить','retry','primary')}</section>`;}
 }
 boot();
+
+function tournament(){
+ const t=S.tournament;
+ return `<button class="back-button" data-tab="games">← Все игры</button>`+heading(esc(t.title),`Турнир · ${date(t.starts_at)}${t.location?' · '+esc(t.location):''}`)+`<span class="badge">${t.status==='completed'?'Завершён':'Ожидает итогов'}</span><div class="toolbar">${staff()?button(t.status==='completed'?'Исправить итоги':'Внести итоги','tournament-results','primary'):''}</div><section class="card glass"><div class="section-heading"><h2>Итоговые места</h2></div>${t.results.length?t.results.map(r=>`<div class="list-row"><span class="rank">${r.place}</span>${avatar(r.name)}<div class="grow name">${esc(r.name)}</div><span class="badge">${r.place===1?'Победитель':r.place+' место'}</span></div>`).join(''):empty(staff()?'После игры внесите места участников одним списком.':'Организатор внесёт результаты после игры.')}${t.note?`<p class="field-hint">${esc(t.note)}</p>`:''}</section>`;
+}
+function tournamentRanking(){
+ const rows=S.tournamentRanking;
+ return `<div class="section-heading"><h2>Турнирный рейтинг · всё время</h2></div><section class="card glass">${rows.length?rows.map((r,i)=>`<div class="list-row"><span class="rank">${i+1}</span>${avatar(r.name)}<div class="grow"><div class="name">${esc(r.name)}</div><small>Турниров: ${r.games} · среднее место: ${r.average_place.toLocaleString('ru-RU',{maximumFractionDigits:1})}</small></div><b>Побед: ${r.wins}</b></div>`).join(''):empty('Рейтинг появится после первого турнира.')}</section><p class="fine-print">По числу побед, затем по среднему месту. При равенстве — порядок вступления. Турнирные места считаются отдельно от cash-прибыли.</p>`;
+}
