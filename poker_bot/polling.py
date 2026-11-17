@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from .db import Database
 from .telegram_ui import build_dispatcher
+from .mini_launcher import configure_menu
 
 
 async def serve():
@@ -25,9 +26,9 @@ async def serve():
     dispatcher = build_dispatcher(db)
     try:
         async with Bot(token) as bot:
+            await configure_menu(bot)
             await bot.delete_webhook(drop_pending_updates=False)
-            # На первом этапе обрабатываются сообщения и callback. widget_query
-            # уже есть в SDK, обработчик и включение в polling — этап виджетов.
+            # Telegram serves only as an entry point; actions run through the Mini App API.
             await dispatcher.start_polling(
                 bot,
                 allowed_updates=dispatcher.resolve_used_update_types(),

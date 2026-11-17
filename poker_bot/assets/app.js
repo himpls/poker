@@ -168,7 +168,7 @@ async function act(action,element){
   },{review:true,label:'Создать игру',hint:'В турнире места записываются после игры; денежный вход не используется. В cash учитываются входы, докупки и кэшауты.'});return;
  }
  if(action==='invite'){
-  const r=await api(`/clubs/${S.clubId}/invite`,{});form('Приглашение в клуб',[{name:'token',label:'Скопируйте и передайте другу',value:r.token,max:100}],async()=>{}, {label:'Закрыть',hint:'Друг сможет вставить этот код в разделе «У меня приглашение».'});return;
+  const r=await api(`/clubs/${S.clubId}/invite`,{});form('Приглашение в клуб',[{name:'token',label:'Скопируйте и передайте другу',value:r.url||r.token,max:250}],async()=>{}, {label:'Закрыть',hint:r.url?'Отправьте ссылку другу. Он откроет приложение и вступит в клуб.':'Друг сможет вставить этот код в разделе «У меня приглашение».'});return;
  }
  if(action==='guest'){form('Добавить гостя',[{name:'name',label:'Имя гостя'}],v=>api(`/clubs/${S.clubId}/guests`,v),{label:'Добавить'});return;}
  if(action==='role'){confirm('Изменить роль?',`Новая роль: ${roleNames[element.dataset.role]}.`,()=>api(`/clubs/${S.clubId}/roles`,{member_id:Number(element.dataset.id),role:element.dataset.role}));return;}
@@ -207,7 +207,19 @@ document.addEventListener('click',async e=>{
 });
 $('#club-select').onchange=async e=>{S.clubId=Number(e.target.value);S.game=null;S.tournament=null;S.page=0;await refresh();};
 async function boot(){
- try{const config=await api('/config');$('#demo-banner').hidden=!config.demo;await refresh();}
+ try{
+  const config=await api('/config');$('#demo-banner').hidden=!config.demo;
+  const params=new URLSearchParams(location.search);
+  const start=new URLSearchParams(W?.initData||'').get('start_param')||params.get('tgWebAppStartParam')||'';
+  const invite=params.get('invite')||(start.startsWith('join_')?start.slice(5):'');
+  let inviteError;
+  if(invite){
+   try{const result=await api('/join',{token:invite});S.clubId=result.id;
+    params.delete('invite');history.replaceState(null,'',location.pathname+(params.size?'?'+params:'')+location.hash);
+   }catch(e){inviteError=e.message;}
+  }
+  await refresh();if(inviteError)toast(inviteError);
+ }
  catch(e){$('#content').innerHTML=`<section class="card glass empty"><h2>Не удалось загрузить приложение</h2><p>${esc(e.message)}</p>${button('Повторить','retry','primary')}</section>`;}
 }
 boot();

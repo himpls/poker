@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+import re
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -137,7 +138,10 @@ def install_mini_app(app, database=None, demo=False):
 
     @router.post("/clubs/{club_id}/invite")
     def invite(club_id: int, user: actor):
-        return {"token": Clubs(db()).invite(user["id"], club_id)}
+        token = Clubs(db()).invite(user["id"], club_id)
+        username = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
+        url = f"https://t.me/{username}?start=join_{token}" if re.fullmatch(r"[A-Za-z0-9_]{5,32}", username) else None
+        return {"token": token, "url": url}
 
     @router.post("/clubs/{club_id}/guests")
     def guest(club_id: int, body: Guest, user: actor):
@@ -222,6 +226,8 @@ def install_mini_app(app, database=None, demo=False):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
+        if request.url.path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "no-cache"
         if request.url.path.startswith("/api"):
             response.headers["Cache-Control"] = "no-store"
         return response

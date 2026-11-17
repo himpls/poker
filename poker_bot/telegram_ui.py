@@ -204,7 +204,9 @@ class ClubUI:
 
 
 def build_dispatcher(db):
-    ui = ClubUI(db)
+    from .mini_launcher import MiniAppLauncher
+
+    ui = MiniAppLauncher()
     dp = Dispatcher()
     dp.message.register(ui.message, F.text)
     dp.callback_query.register(ui.callback)
