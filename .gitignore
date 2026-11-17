@@ -1,4 +1,10 @@
 .env
+.env.*
+!.env.example
+.aws/
+.mcp.json
+*.pem
+*.key
 .venv/
 .tools/
 __pycache__/
